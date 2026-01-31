@@ -5,13 +5,13 @@ plugins {
 }
 
 android {
-    namespace = "com.example.dailyvoicejournalapp"
+    namespace = "com.Deysdeveloper.dailyvoicejournalapp"
     compileSdk {
         version = release(36)
     }
 
     defaultConfig {
-        applicationId = "com.example.dailyvoicejournalapp"
+        applicationId = "com.Deysdeveloper.dailyvoicejournalapp"
         minSdk = 31
         targetSdk = 36
         versionCode = 1
@@ -69,6 +69,9 @@ dependencies {
     
     // DataStore
     implementation(libs.androidx.datastore.preferences)
+    
+    // Biometric
+    implementation("androidx.biometric:biometric-ktx:1.2.0-alpha05")
     
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

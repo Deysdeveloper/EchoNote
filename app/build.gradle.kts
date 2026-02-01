@@ -5,13 +5,13 @@ plugins {
 }
 
 android {
-    namespace = "com.deysdeveloper.echonote"
+    namespace = "com.Deysdeveloper.dailyvoicejournalapp"
     compileSdk {
         version = release(36)
     }
 
     defaultConfig {
-        applicationId = "com.deysdeveloper.echonote"
+        applicationId = "com.Deysdeveloper.dailyvoicejournalapp"
         minSdk = 31
         targetSdk = 36
         versionCode = 1

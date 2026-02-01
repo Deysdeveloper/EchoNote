@@ -1,4 +1,4 @@
-# Daily Voice Journal App
+# EchoNote
 
 A minimal, offline-first voice journaling app for Android. Record your thoughts in seconds with no typing, no login, and no cloud storage.
 
@@ -70,7 +70,7 @@ app/src/main/java/com/example/dailyvoicejournalapp/
 
 ## Play Store Listing
 
-**Title**: Daily Voice Journal – Minimal Recorder
+**Title**: EchoNote – Minimal Voice Recorder
 
 **Description**: Record your thoughts in seconds. No login. No cloud. Just you.
 

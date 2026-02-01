@@ -5,13 +5,13 @@ plugins {
 }
 
 android {
-    namespace = "com.Deysdeveloper.dailyvoicejournalapp"
+    namespace = "com.deysdeveloper.echonote"
     compileSdk {
         version = release(36)
     }
 
     defaultConfig {
-        applicationId = "com.Deysdeveloper.dailyvoicejournalapp"
+        applicationId = "com.deysdeveloper.echonote"
         minSdk = 31
         targetSdk = 36
         versionCode = 1
@@ -35,13 +35,6 @@ android {
     }
     buildFeatures {
         compose = true
-    }
-    
-    // Configure KSP source sets
-    sourceSets {
-        getByName("main") {
-            java.srcDirs("build/generated/ksp/debug/kotlin")
-        }
     }
 }
 
@@ -71,7 +64,10 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     
     // Biometric
-    implementation("androidx.biometric:biometric-ktx:1.2.0-alpha05")
+    implementation(libs.androidx.biometric.ktx)
+    
+    // Fragment - required for ActivityResult API
+    implementation(libs.androidx.fragment.ktx)
     
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

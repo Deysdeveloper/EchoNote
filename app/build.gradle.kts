@@ -36,6 +36,20 @@ android {
     buildFeatures {
         compose = true
     }
+    
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+        jniLibs {
+            useLegacyPackaging = true
+            pickFirsts.add("**/libjnidispatch.so")
+            pickFirsts.add("**/libvosk.so")
+        }
+    }
+    
+    // Add jniLibs source set
+    sourceSets["main"].jniLibs.srcDir("src/main/jniLibs")
 }
 
 dependencies {
@@ -68,6 +82,14 @@ dependencies {
     
     // Fragment - required for ActivityResult API
     implementation(libs.androidx.fragment.ktx)
+    
+    // Vosk for on-device speech recognition
+    implementation(libs.vosk.android) {
+        exclude(group = "net.java.dev.jna", module = "jna")
+    }
+    
+    // JNA required by Vosk - use AAR version which includes Android native libs
+    implementation("net.java.dev.jna:jna:5.13.0@aar")
     
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

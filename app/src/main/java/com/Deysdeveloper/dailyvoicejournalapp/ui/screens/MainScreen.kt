@@ -16,17 +16,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import com.Deysdeveloper.dailyvoicejournalapp.audio.ModelDownloader
+import com.Deysdeveloper.dailyvoicejournalapp.audio.SpeechToTextService
 import com.Deysdeveloper.dailyvoicejournalapp.ui.MainViewModel
 import com.Deysdeveloper.dailyvoicejournalapp.ui.RecordingState
 import com.Deysdeveloper.dailyvoicejournalapp.ui.components.DateHeader
 import com.Deysdeveloper.dailyvoicejournalapp.ui.components.EmptyStateView
+import com.Deysdeveloper.dailyvoicejournalapp.ui.components.ModelDownloadDialog
 import com.Deysdeveloper.dailyvoicejournalapp.ui.components.RecordButton
 import com.Deysdeveloper.dailyvoicejournalapp.ui.components.RenameDialog
 import com.Deysdeveloper.dailyvoicejournalapp.ui.components.SettingsDialog
+import com.Deysdeveloper.dailyvoicejournalapp.ui.components.SpeechModelSetupDialog
 import com.Deysdeveloper.dailyvoicejournalapp.ui.components.StatisticsCard
+import com.Deysdeveloper.dailyvoicejournalapp.ui.components.TranscriptDialog
 import com.Deysdeveloper.dailyvoicejournalapp.ui.components.VoiceNoteItem
 import com.Deysdeveloper.dailyvoicejournalapp.ui.components.WaveformVisualizerLive
 import com.Deysdeveloper.dailyvoicejournalapp.data.VoiceNote
+import com.Deysdeveloper.dailyvoicejournalapp.ui.TranscriptState
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -41,9 +47,19 @@ fun MainScreen(
     val recordingState = viewModel.recordingState
     val statistics by viewModel.statistics.collectAsState()
     val userPreferences by viewModel.userPreferences.collectAsState()
+    val transcriptStates by viewModel.transcriptStates.collectAsState()
+    val modelDownloadState by viewModel.modelDownloadState.collectAsState()
     
     var noteToRename by remember { mutableStateOf<VoiceNote?>(null) }
+    var noteToEditTranscript by remember { mutableStateOf<VoiceNote?>(null) }
     var showSettingsDialog by remember { mutableStateOf(false) }
+    var showModelSetupDialog by remember { mutableStateOf(false) }
+    var showModelDownloadDialog by remember { mutableStateOf(false) }
+    
+    // Initialize speech model on startup (check if exists, don't auto-download)
+    LaunchedEffect(Unit) {
+        viewModel.initializeSpeechModel(autoDownload = false)
+    }
     
     Scaffold(
         topBar = {
@@ -77,7 +93,7 @@ fun MainScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text("Search by title...") },
+                placeholder = { Text("Search by title or transcript...") },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Search,
@@ -189,12 +205,18 @@ fun MainScreen(
                         items(groupedNotes.today) { note ->
                             val isThisNotePlaying = recordingState is RecordingState.Playing && 
                                            (recordingState as RecordingState.Playing).noteId == note.id
+                            val transcriptState = transcriptStates[note.id]
+                            val isTranscribing = transcriptState is TranscriptState.Converting
+                            val isConvertingAudio = false
                             VoiceNoteItem(
                                 voiceNote = note,
                                 isPlaying = isThisNotePlaying,
                                 isAudioActuallyPlaying = if (isThisNotePlaying) viewModel.isAudioActuallyPlaying else false,
                                 currentPosition = if (isThisNotePlaying) viewModel.currentPlaybackPosition else 0,
                                 playbackDuration = if (isThisNotePlaying) viewModel.currentPlaybackDuration else 0,
+                                isTranscribing = isTranscribing,
+                                isConvertingAudio = isConvertingAudio,
+                                canAutoTranscribe = viewModel.isSpeechModelAvailable(),
                                 formatTime = viewModel::formatTime,
                                 formatDuration = viewModel::formatDuration,
                                 getDefaultTitle = viewModel::getDefaultTitle,
@@ -209,7 +231,15 @@ fun MainScreen(
                                 onSeek = { position -> viewModel.seekPlayback(position) },
                                 onEditClick = { noteToRename = note },
                                 onDeleteClick = { viewModel.deleteVoiceNote(note.id) },
-                                onShareClick = { shareVoiceNote(context, note.filePath) }
+                                onShareClick = { shareVoiceNote(context, note.filePath) },
+                                onEditTranscriptClick = { noteToEditTranscript = note },
+                                                                onAutoTranscribeClick = {
+                                    if (viewModel.isSpeechModelAvailable()) {
+                                        viewModel.convertSpeechToText(note)
+                                    } else {
+                                        showModelDownloadDialog = true
+                                    }
+                                }
                             )
                         }
                     }
@@ -222,12 +252,16 @@ fun MainScreen(
                         items(groupedNotes.yesterday) { note ->
                             val isThisNotePlaying = recordingState is RecordingState.Playing && 
                                            (recordingState as RecordingState.Playing).noteId == note.id
+                            val transcriptState = transcriptStates[note.id]
+                            val isTranscribing = transcriptState is TranscriptState.Converting
                             VoiceNoteItem(
                                 voiceNote = note,
                                 isPlaying = isThisNotePlaying,
                                 isAudioActuallyPlaying = if (isThisNotePlaying) viewModel.isAudioActuallyPlaying else false,
                                 currentPosition = if (isThisNotePlaying) viewModel.currentPlaybackPosition else 0,
                                 playbackDuration = if (isThisNotePlaying) viewModel.currentPlaybackDuration else 0,
+                                isTranscribing = isTranscribing,
+                                canAutoTranscribe = viewModel.isSpeechModelAvailable(),
                                 formatTime = viewModel::formatTime,
                                 formatDuration = viewModel::formatDuration,
                                 getDefaultTitle = viewModel::getDefaultTitle,
@@ -242,7 +276,15 @@ fun MainScreen(
                                 onSeek = { position -> viewModel.seekPlayback(position) },
                                 onEditClick = { noteToRename = note },
                                 onDeleteClick = { viewModel.deleteVoiceNote(note.id) },
-                                onShareClick = { shareVoiceNote(context, note.filePath) }
+                                onShareClick = { shareVoiceNote(context, note.filePath) },
+                                onEditTranscriptClick = { noteToEditTranscript = note },
+                                                                onAutoTranscribeClick = {
+                                    if (viewModel.isSpeechModelAvailable()) {
+                                        viewModel.convertSpeechToText(note)
+                                    } else {
+                                        showModelDownloadDialog = true
+                                    }
+                                }
                             )
                         }
                     }
@@ -255,12 +297,16 @@ fun MainScreen(
                         items(groupedNotes.older) { note ->
                             val isThisNotePlaying = recordingState is RecordingState.Playing && 
                                            (recordingState as RecordingState.Playing).noteId == note.id
+                            val transcriptState = transcriptStates[note.id]
+                            val isTranscribing = transcriptState is TranscriptState.Converting
                             VoiceNoteItem(
                                 voiceNote = note,
                                 isPlaying = isThisNotePlaying,
                                 isAudioActuallyPlaying = if (isThisNotePlaying) viewModel.isAudioActuallyPlaying else false,
                                 currentPosition = if (isThisNotePlaying) viewModel.currentPlaybackPosition else 0,
                                 playbackDuration = if (isThisNotePlaying) viewModel.currentPlaybackDuration else 0,
+                                isTranscribing = isTranscribing,
+                                canAutoTranscribe = viewModel.isSpeechModelAvailable(),
                                 formatTime = viewModel::formatTime,
                                 formatDuration = viewModel::formatDuration,
                                 getDefaultTitle = viewModel::getDefaultTitle,
@@ -275,7 +321,15 @@ fun MainScreen(
                                 onSeek = { position -> viewModel.seekPlayback(position) },
                                 onEditClick = { noteToRename = note },
                                 onDeleteClick = { viewModel.deleteVoiceNote(note.id) },
-                                onShareClick = { shareVoiceNote(context, note.filePath) }
+                                onShareClick = { shareVoiceNote(context, note.filePath) },
+                                onEditTranscriptClick = { noteToEditTranscript = note },
+                                                                onAutoTranscribeClick = {
+                                    if (viewModel.isSpeechModelAvailable()) {
+                                        viewModel.convertSpeechToText(note)
+                                    } else {
+                                        showModelDownloadDialog = true
+                                    }
+                                }
                             )
                         }
                     }
@@ -317,6 +371,46 @@ fun MainScreen(
             },
             onLockToggle = { enabled ->
                 viewModel.toggleLock(enabled)
+            }
+        )
+    }
+    
+    // Transcript dialog
+    noteToEditTranscript?.let { note ->
+        TranscriptDialog(
+            currentTranscript = note.transcript,
+            onDismiss = { noteToEditTranscript = null },
+            onSave = { transcript ->
+                viewModel.setTranscriptManually(note.id, transcript ?: "")
+                noteToEditTranscript = null
+            }
+        )
+    }
+    
+    // Speech model setup dialog (fallback)
+    if (showModelSetupDialog) {
+        SpeechModelSetupDialog(
+            instructions = viewModel.getSpeechModelInstructions(),
+            onDismiss = { showModelSetupDialog = false }
+        )
+    }
+    
+    // Model download dialog
+    if (showModelDownloadDialog || modelDownloadState is ModelDownloader.DownloadState.Downloading || modelDownloadState is ModelDownloader.DownloadState.Extracting) {
+        ModelDownloadDialog(
+            downloadState = modelDownloadState,
+            onDismiss = { 
+                showModelDownloadDialog = false
+                if (modelDownloadState is ModelDownloader.DownloadState.Success) {
+                    // Re-initialize the model after successful download
+                    viewModel.initializeSpeechModel(autoDownload = false)
+                }
+            },
+            onDownloadClick = {
+                viewModel.downloadSpeechModel()
+            },
+            onRetryClick = {
+                viewModel.downloadSpeechModel()
             }
         )
     }

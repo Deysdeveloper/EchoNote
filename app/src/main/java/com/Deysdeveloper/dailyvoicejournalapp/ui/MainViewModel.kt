@@ -9,12 +9,15 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.Deysdeveloper.dailyvoicejournalapp.audio.AudioPlayer
 import com.Deysdeveloper.dailyvoicejournalapp.audio.AudioRecorder
+import com.Deysdeveloper.dailyvoicejournalapp.audio.SpeechToTextService
 import com.Deysdeveloper.dailyvoicejournalapp.data.PreferencesManager
 import com.Deysdeveloper.dailyvoicejournalapp.data.UserPreferences
 import com.Deysdeveloper.dailyvoicejournalapp.data.VoiceNote
 import com.Deysdeveloper.dailyvoicejournalapp.notifications.ReminderScheduler
 import com.Deysdeveloper.dailyvoicejournalapp.repository.VoiceNoteRepository
 import com.Deysdeveloper.dailyvoicejournalapp.utils.StreakCalculator
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
@@ -33,6 +36,13 @@ sealed class RecordingState {
     data class Playing(val noteId: Long) : RecordingState()
 }
 
+sealed class TranscriptState {
+    object Idle : TranscriptState()
+    object Converting : TranscriptState()
+    data class Success(val transcript: String) : TranscriptState()
+    data class Error(val message: String) : TranscriptState()
+}
+
 data class GroupedVoiceNotes(
     val today: List<VoiceNote>,
     val yesterday: List<VoiceNote>,
@@ -48,6 +58,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = VoiceNoteRepository(application)
     private val preferencesManager = PreferencesManager(application)
     private val audioRecorder by lazy { AudioRecorder(application) }
+    private val speechToTextService by lazy { SpeechToTextService(application) }
     val audioPlayer = AudioPlayer()
     
     var recordingState by mutableStateOf<RecordingState>(RecordingState.Idle)
@@ -71,11 +82,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     var searchQuery by mutableStateOf("")
         private set
     
+    // Speech-to-text state
+    private val _transcriptStates = MutableStateFlow<Map<Long, TranscriptState>>(emptyMap())
+    val transcriptStates = _transcriptStates.asStateFlow()
+    
     private var currentRecordingFile: File? = null
     private var amplitudeSamplingJob: Job? = null
     private var playbackProgressJob: Job? = null
     private var recordingTimerJob: Job? = null
     private var recordingStartTime: Long = 0L
+    private var currentTranscribingNoteId: Long? = null
     
     private val allVoiceNotes: StateFlow<List<VoiceNote>> = repository.getAllVoiceNotes()
         .stateIn(
@@ -91,7 +107,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 notes.filter { note ->
                     val title = note.title ?: getDefaultTitle(note.timestamp)
-                    title.contains(searchQuery, ignoreCase = true)
+                    val transcript = note.transcript ?: ""
+                    title.contains(searchQuery, ignoreCase = true) ||
+                    transcript.contains(searchQuery, ignoreCase = true)
                 }
             }
             groupNotesByDate(filteredNotes)
@@ -317,6 +335,111 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
+    fun updateVoiceNoteTranscript(id: Long, transcript: String?) {
+        viewModelScope.launch {
+            repository.updateVoiceNoteTranscript(id, transcript)
+            _transcriptStates.value = _transcriptStates.value.toMutableMap().apply {
+                remove(id)
+            }
+        }
+    }
+    
+    /**
+     * Converts speech in the audio file to text using Vosk.
+     * This runs entirely on-device with no internet required.
+     * 
+     * Requires the Vosk model to be downloaded first.
+     */
+    fun convertSpeechToText(voiceNote: VoiceNote) {
+        viewModelScope.launch {
+            try {
+                _transcriptStates.value = _transcriptStates.value.toMutableMap().apply {
+                    put(voiceNote.id, TranscriptState.Converting)
+                }
+                currentTranscribingNoteId = voiceNote.id
+
+                // Use Vosk for transcription
+                val result = speechToTextService.transcribeAudioFile(voiceNote.filePath)
+
+                result.fold(
+                    onSuccess = { transcript ->
+                        if (transcript.isNotBlank()) {
+                            updateVoiceNoteTranscript(voiceNote.id, transcript)
+                            _transcriptStates.value = _transcriptStates.value.toMutableMap().apply {
+                                put(voiceNote.id, TranscriptState.Success(transcript))
+                            }
+                        } else {
+                            _transcriptStates.value = _transcriptStates.value.toMutableMap().apply {
+                                put(voiceNote.id, TranscriptState.Error("No speech recognized. The audio may be too short or unclear."))
+                            }
+                        }
+                    },
+                    onFailure = { error ->
+                        Log.e("MainViewModel", "Transcription failed", error)
+                        _transcriptStates.value = _transcriptStates.value.toMutableMap().apply {
+                            put(voiceNote.id, TranscriptState.Error(error.message ?: "Transcription failed. Please try again or add transcript manually."))
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                Log.e("MainViewModel", "Unexpected error during transcription", e)
+                _transcriptStates.value = _transcriptStates.value.toMutableMap().apply {
+                    put(voiceNote.id, TranscriptState.Error("Unexpected error: ${e.message}"))
+                }
+            } finally {
+                currentTranscribingNoteId = null
+            }
+        }
+    }
+    
+    /**
+     * Check if the Vosk speech model is available.
+     */
+    fun isSpeechModelAvailable(): Boolean {
+        return speechToTextService.isModelAvailable()
+    }
+    
+    /**
+     * Get instructions for downloading the speech model.
+     */
+    fun getSpeechModelInstructions(): String {
+        return speechToTextService.getModelDownloadInstructions()
+    }
+    
+    /**
+     * Initialize the speech model. Call this on app startup.
+     * @param autoDownload If true, will automatically download the model if not present
+     */
+    fun initializeSpeechModel(autoDownload: Boolean = false) {
+        viewModelScope.launch {
+            speechToTextService.initializeModel(autoDownload)
+        }
+    }
+    
+    /**
+     * Download the Vosk speech model automatically.
+     */
+    fun downloadSpeechModel() {
+        viewModelScope.launch {
+            speechToTextService.modelDownloader.downloadModel()
+        }
+    }
+    
+    /**
+     * Get the model download state flow.
+     */
+    val modelDownloadState = speechToTextService.modelDownloader.downloadState
+    
+    fun setTranscriptManually(id: Long, transcript: String) {
+        updateVoiceNoteTranscript(id, transcript)
+    }
+    
+    fun clearTranscriptError(id: Long) {
+        _transcriptStates.value = _transcriptStates.value.toMutableMap().apply {
+            remove(id)
+        }
+    }
+    
     fun getDefaultTitle(timestamp: Long): String {
         val calendar = Calendar.getInstance().apply {
             timeInMillis = timestamp
@@ -431,5 +554,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         stopPlaybackProgressTracking()
         audioRecorder.release()
         audioPlayer.release()
+        speechToTextService.destroy()
     }
 }

@@ -48,6 +48,10 @@ class VoiceNoteRepository(context: Context) {
         voiceNoteDao.updateTitle(id, title)
     }
     
+    suspend fun updateVoiceNoteTranscript(id: Long, transcript: String?) {
+        voiceNoteDao.updateTranscript(id, transcript)
+    }
+    
     fun searchVoiceNotes(query: String): Flow<List<VoiceNote>> {
         return voiceNoteDao.searchByTitle(query)
     }

@@ -2,7 +2,9 @@ package com.Deysdeveloper.dailyvoicejournalapp.ui.components
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
@@ -11,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.Deysdeveloper.dailyvoicejournalapp.data.VoiceNote
 
@@ -21,6 +24,9 @@ fun VoiceNoteItem(
     isAudioActuallyPlaying: Boolean = false,
     currentPosition: Int = 0,
     playbackDuration: Int = 0,
+    isTranscribing: Boolean = false,
+    isConvertingAudio: Boolean = false,
+    canAutoTranscribe: Boolean = false,
     formatTime: (Long) -> String,
     formatDuration: (Long) -> String,
     getDefaultTitle: (Long) -> String,
@@ -30,6 +36,8 @@ fun VoiceNoteItem(
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit,
     onShareClick: () -> Unit,
+    onEditTranscriptClick: () -> Unit = {},
+    onAutoTranscribeClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -107,6 +115,32 @@ fun VoiceNoteItem(
                         Spacer(modifier = Modifier.weight(1f))
                     }
                     
+                    // Edit transcript button
+                    IconButton(onClick = onEditTranscriptClick) {
+                        Icon(
+                            imageVector = Icons.Default.Description,
+                            contentDescription = if (voiceNote.transcript.isNullOrBlank()) "Add transcript" else "Edit transcript",
+                            tint = if (voiceNote.transcript.isNullOrBlank()) 
+                                MaterialTheme.colorScheme.outline 
+                            else 
+                                MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    
+                    // Auto-transcribe button (show if no transcript and not currently transcribing)
+                    if (voiceNote.transcript.isNullOrBlank() && !isTranscribing) {
+                        IconButton(onClick = onAutoTranscribeClick) {
+                            Icon(
+                                imageVector = Icons.Default.AutoFixHigh,
+                                contentDescription = "Auto-transcribe",
+                                tint = if (canAutoTranscribe) 
+                                    MaterialTheme.colorScheme.secondary 
+                                else 
+                                    MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
+                    
                     // Share button
                     IconButton(onClick = onShareClick) {
                         Icon(
@@ -138,6 +172,66 @@ fun VoiceNoteItem(
                     formatTime = formatTime,
                     modifier = Modifier.fillMaxWidth()
                 )
+            }
+            
+            // Show transcript if available
+            if (!voiceNote.transcript.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Description,
+                        contentDescription = "Transcript",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Transcript",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                Text(
+                    text = voiceNote.transcript,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            
+            // Transcribing indicator
+            if (isTranscribing || isConvertingAudio) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (isConvertingAudio) "Converting audio format..." else "Transcribing speech...",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
     }

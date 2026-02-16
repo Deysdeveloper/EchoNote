@@ -10,5 +10,6 @@ data class VoiceNote(
     val filePath: String,
     val timestamp: Long,
     val duration: Long, // Duration in milliseconds
-    val title: String? = null // Custom title for the note
+    val title: String? = null, // Custom title for the note
+    val transcript: String? = null // Speech-to-text transcript
 )

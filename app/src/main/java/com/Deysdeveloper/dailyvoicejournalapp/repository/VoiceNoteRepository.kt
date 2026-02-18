@@ -51,7 +51,11 @@ class VoiceNoteRepository(context: Context) {
     suspend fun updateVoiceNoteTranscript(id: Long, transcript: String?) {
         voiceNoteDao.updateTranscript(id, transcript)
     }
-    
+
+    suspend fun updateVoiceNoteWaveform(id: Long, waveformData: String?) {
+        voiceNoteDao.updateWaveformData(id, waveformData)
+    }
+
     fun searchVoiceNotes(query: String): Flow<List<VoiceNote>> {
         return voiceNoteDao.searchByTitle(query)
     }

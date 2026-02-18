@@ -23,6 +23,7 @@ class PreferencesManager(private val context: Context) {
         private val NOTIFICATION_HOUR = intPreferencesKey("notification_hour")
         private val NOTIFICATION_MINUTE = intPreferencesKey("notification_minute")
         private val LOCK_ENABLED = booleanPreferencesKey("lock_enabled")
+        private val THEME_MODE = stringPreferencesKey("theme_mode")
     }
     
     val userPreferencesFlow: Flow<UserPreferences> = context.dataStore.data
@@ -34,7 +35,8 @@ class PreferencesManager(private val context: Context) {
                 notificationEnabled = preferences[NOTIFICATION_ENABLED] ?: true,
                 notificationHour = preferences[NOTIFICATION_HOUR] ?: 21,
                 notificationMinute = preferences[NOTIFICATION_MINUTE] ?: 0,
-                lockEnabled = preferences[LOCK_ENABLED] ?: false
+                lockEnabled = preferences[LOCK_ENABLED] ?: false,
+                themeMode = preferences[THEME_MODE]?.let { ThemeMode.valueOf(it) } ?: ThemeMode.SYSTEM
             )
         }
     
@@ -57,6 +59,12 @@ class PreferencesManager(private val context: Context) {
     suspend fun updateLockEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[LOCK_ENABLED] = enabled
+        }
+    }
+    
+    suspend fun updateThemeMode(themeMode: ThemeMode) {
+        context.dataStore.edit { preferences ->
+            preferences[THEME_MODE] = themeMode.name
         }
     }
 }

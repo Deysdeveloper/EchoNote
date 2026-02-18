@@ -3,18 +3,28 @@ package com.Deysdeveloper.dailyvoicejournalapp.ui.screens
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -22,19 +32,21 @@ import androidx.core.content.FileProvider
 import com.Deysdeveloper.dailyvoicejournalapp.audio.ModelDownloader
 import com.Deysdeveloper.dailyvoicejournalapp.ui.MainViewModel
 import com.Deysdeveloper.dailyvoicejournalapp.ui.RecordingState
-import com.Deysdeveloper.dailyvoicejournalapp.ui.components.DateHeader
-import com.Deysdeveloper.dailyvoicejournalapp.ui.components.EmptyStateView
+import com.Deysdeveloper.dailyvoicejournalapp.ui.components.BeautifulDateHeader
+import com.Deysdeveloper.dailyvoicejournalapp.ui.components.BeautifulEmptyState
+import com.Deysdeveloper.dailyvoicejournalapp.ui.components.BeautifulRecordButton
+import com.Deysdeveloper.dailyvoicejournalapp.ui.components.BeautifulStatisticsCard
+import com.Deysdeveloper.dailyvoicejournalapp.ui.components.BeautifulVoiceNoteItem
 import com.Deysdeveloper.dailyvoicejournalapp.ui.components.ModelDownloadDialog
-import com.Deysdeveloper.dailyvoicejournalapp.ui.components.RecordButton
 import com.Deysdeveloper.dailyvoicejournalapp.ui.components.RenameDialog
 import com.Deysdeveloper.dailyvoicejournalapp.ui.components.SettingsDialog
 import com.Deysdeveloper.dailyvoicejournalapp.ui.components.SpeechModelSetupDialog
-import com.Deysdeveloper.dailyvoicejournalapp.ui.components.StatisticsCard
 import com.Deysdeveloper.dailyvoicejournalapp.ui.components.TranscriptDialog
-import com.Deysdeveloper.dailyvoicejournalapp.ui.components.VoiceNoteItem
 import com.Deysdeveloper.dailyvoicejournalapp.ui.components.WaveformVisualizerLive
 import com.Deysdeveloper.dailyvoicejournalapp.data.VoiceNote
 import com.Deysdeveloper.dailyvoicejournalapp.ui.TranscriptState
+import com.Deysdeveloper.dailyvoicejournalapp.ui.theme.WarmTeal
+import com.Deysdeveloper.dailyvoicejournalapp.ui.theme.WarmTealLight
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -70,20 +82,75 @@ fun MainScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { 
-                    Text(
-                        text = "Daily Voice Journal",
-                        style = MaterialTheme.typography.headlineSmall
-                    )
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // App icon/logo with theme-based gradient
+                        val primaryColor = MaterialTheme.colorScheme.primary
+                        val gradientBrush = Brush.linearGradient(
+                            colors = listOf(
+                                primaryColor.copy(alpha = 0.7f),
+                                primaryColor
+                            )
+                        )
+                        
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(
+                                    brush = gradientBrush,
+                                    shape = RoundedCornerShape(10.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Mic,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        // Title
+                        Column {
+                            Text(
+                                text = "Daily Voice Journal",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.SemiBold
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Capture your thoughts",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 },
                 actions = {
-                    IconButton(onClick = { showSettingsDialog = true }) {
+                    // Settings button with better styling
+                    IconButton(
+                        onClick = { showSettingsDialog = true },
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                                shape = CircleShape
+                            )
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Settings,
-                            contentDescription = "Settings"
+                            contentDescription = "Settings",
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+                )
             )
         }
     ) { paddingValues ->
@@ -92,33 +159,57 @@ fun MainScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Search bar
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { viewModel.updateSearchQuery(it) },
+            // Beautiful Search bar with glassmorphism effect
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text("Search by title or transcript...") },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = "Search"
-                    )
-                },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { viewModel.clearSearch() }) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Clear search"
-                            )
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            ) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { viewModel.updateSearchQuery(it) },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = {
+                        Text(
+                            "Search your journals...",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(
+                                onClick = { viewModel.clearSearch() },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Clear search",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
-                    }
-                },
-                singleLine = true,
-                shape = MaterialTheme.shapes.medium
-            )
+                    },
+                    singleLine = true,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        focusedIndicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                        unfocusedIndicatorColor = Color.Transparent,
+                        focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
+                        unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                )
+            }
             
             LazyColumn(
                 modifier = Modifier
@@ -128,11 +219,12 @@ fun MainScreen(
             // Statistics Card - shown when there are recordings
             if (statistics.totalCount > 0) {
                 item {
-                    StatisticsCard(
+                    BeautifulStatisticsCard(
                         totalRecordings = statistics.totalCount,
                         totalDuration = statistics.totalDuration,
                         currentStreak = userPreferences.currentStreak,
-                        longestStreak = userPreferences.longestStreak
+                        longestStreak = userPreferences.longestStreak,
+                        lastSevenDaysActivity = viewModel.getLastSevenDaysActivity()
                     )
                 }
             }
@@ -148,7 +240,7 @@ fun MainScreen(
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        RecordButton(
+                        BeautifulRecordButton(
                             isRecording = recordingState is RecordingState.Recording,
                             onRecordClick = {
                                 if (!hasRecordPermission) {
@@ -200,13 +292,13 @@ fun MainScreen(
                 groupedNotes.yesterday.isEmpty() &&
                 groupedNotes.olderByDate.isEmpty()) {
                 item {
-                    EmptyStateView()
+                    BeautifulEmptyState()
                 }
             } else {
                     // Today section
                     if (groupedNotes.today.isNotEmpty()) {
                         item {
-                            DateHeader(text = "Today")
+                            BeautifulDateHeader(text = "Today", isToday = true)
                         }
                         items(groupedNotes.today) { note ->
                             val isThisNotePlaying = recordingState is RecordingState.Playing && 
@@ -214,7 +306,7 @@ fun MainScreen(
                             val transcriptState = transcriptStates[note.id]
                             val isTranscribing = transcriptState is TranscriptState.Converting
                             val isConvertingAudio = false
-                            VoiceNoteItem(
+                            BeautifulVoiceNoteItem(
                                 voiceNote = note,
                                 isPlaying = isThisNotePlaying,
                                 isAudioActuallyPlaying = if (isThisNotePlaying) viewModel.isAudioActuallyPlaying else false,
@@ -253,14 +345,14 @@ fun MainScreen(
                     // Yesterday section
                     if (groupedNotes.yesterday.isNotEmpty()) {
                         item {
-                            DateHeader(text = "Yesterday")
+                            BeautifulDateHeader(text = "Yesterday", isToday = false)
                         }
                         items(groupedNotes.yesterday) { note ->
                             val isThisNotePlaying = recordingState is RecordingState.Playing && 
                                            (recordingState as RecordingState.Playing).noteId == note.id
                             val transcriptState = transcriptStates[note.id]
                             val isTranscribing = transcriptState is TranscriptState.Converting
-                            VoiceNoteItem(
+                            BeautifulVoiceNoteItem(
                                 voiceNote = note,
                                 isPlaying = isThisNotePlaying,
                                 isAudioActuallyPlaying = if (isThisNotePlaying) viewModel.isAudioActuallyPlaying else false,
@@ -298,14 +390,14 @@ fun MainScreen(
                     // Older notes grouped by date
                     groupedNotes.olderByDate.forEach { dateGroup ->
                         item {
-                            DateHeader(text = dateGroup.header)
+                            BeautifulDateHeader(text = dateGroup.header, isToday = false)
                         }
                         items(dateGroup.notes) { note ->
-                            val isThisNotePlaying = recordingState is RecordingState.Playing &&
+                            val isThisNotePlaying = recordingState is RecordingState.Playing && 
                                            (recordingState as RecordingState.Playing).noteId == note.id
                             val transcriptState = transcriptStates[note.id]
                             val isTranscribing = transcriptState is TranscriptState.Converting
-                            VoiceNoteItem(
+                            BeautifulVoiceNoteItem(
                                 voiceNote = note,
                                 isPlaying = isThisNotePlaying,
                                 isAudioActuallyPlaying = if (isThisNotePlaying) viewModel.isAudioActuallyPlaying else false,
@@ -368,6 +460,7 @@ fun MainScreen(
             notificationHour = userPreferences.notificationHour,
             notificationMinute = userPreferences.notificationMinute,
             lockEnabled = userPreferences.lockEnabled,
+            themeMode = userPreferences.themeMode,
             onDismiss = { showSettingsDialog = false },
             onNotificationToggle = { enabled ->
                 if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -385,63 +478,119 @@ fun MainScreen(
             },
             onLockToggle = { enabled ->
                 viewModel.toggleLock(enabled)
+            },
+            onThemeChange = { themeMode ->
+                viewModel.updateThemeMode(themeMode)
             }
         )
     }
 
-    // Time Picker Dialog - Full screen style for better UX
+    // Time Picker Dialog - Compact and styled
     if (showTimePicker) {
         val timePickerState = rememberTimePickerState(
             initialHour = userPreferences.notificationHour,
             initialMinute = userPreferences.notificationMinute,
             is24Hour = false
         )
+        val backgroundColor = MaterialTheme.colorScheme.background
+        val isDark = backgroundColor.luminance() < 0.5f
 
         Dialog(
             onDismissRequest = { showTimePicker = false },
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
-            Surface(
-                shape = MaterialTheme.shapes.extraLarge,
-                tonalElevation = 6.dp,
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
                 modifier = Modifier
                     .width(IntrinsicSize.Min)
-                    .height(IntrinsicSize.Min)
+                    .padding(16.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(24.dp),
+                    modifier = Modifier
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    if (isDark) WarmTeal.copy(alpha = 0.08f) else WarmTeal.copy(alpha = 0.04f),
+                                    MaterialTheme.colorScheme.surface
+                                )
+                            )
+                        )
+                        .padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text = "Set Reminder Time",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    // Compact header
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    brush = Brush.linearGradient(
+                                        listOf(WarmTeal.copy(alpha = 0.2f), WarmTealLight.copy(alpha = 0.1f))
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Schedule,
+                                contentDescription = null,
+                                tint = WarmTeal,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                        Text(
+                            text = "Reminder Time",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     TimePicker(
                         state = timePickerState,
-                        layoutType = TimePickerLayoutType.Vertical
+                        layoutType = TimePickerLayoutType.Vertical,
+                        modifier = Modifier.padding(horizontal = 8.dp)
                     )
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
+                    // Single close button to match settings style
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End
                     ) {
-                        TextButton(onClick = { showTimePicker = false }) {
+                        TextButton(
+                            onClick = { showTimePicker = false },
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        ) {
                             Text("Cancel")
                         }
                         Spacer(modifier = Modifier.width(8.dp))
-                        TextButton(
+                        Button(
                             onClick = {
                                 viewModel.updateNotificationTime(timePickerState.hour, timePickerState.minute)
                                 showTimePicker = false
-                            }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = WarmTeal,
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text("OK")
+                            Text("Save")
                         }
                     }
                 }

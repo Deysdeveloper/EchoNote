@@ -7,5 +7,10 @@ data class UserPreferences(
     val notificationEnabled: Boolean = true,
     val notificationHour: Int = 21, // 9 PM default
     val notificationMinute: Int = 0,
-    val lockEnabled: Boolean = false
+    val lockEnabled: Boolean = false,
+    val themeMode: ThemeMode = ThemeMode.SYSTEM // System default theme
 )
+
+enum class ThemeMode {
+    LIGHT, DARK, SYSTEM
+}

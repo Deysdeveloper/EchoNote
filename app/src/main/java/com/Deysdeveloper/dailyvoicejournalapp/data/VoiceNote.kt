@@ -11,5 +11,6 @@ data class VoiceNote(
     val timestamp: Long,
     val duration: Long, // Duration in milliseconds
     val title: String? = null, // Custom title for the note
-    val transcript: String? = null // Speech-to-text transcript
+    val transcript: String? = null, // Speech-to-text transcript
+    val waveformData: String? = null // Comma-separated amplitude values for waveform visualization
 )

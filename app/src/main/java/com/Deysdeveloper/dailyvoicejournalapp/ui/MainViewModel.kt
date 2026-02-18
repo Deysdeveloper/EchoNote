@@ -10,7 +10,9 @@ import androidx.lifecycle.viewModelScope
 import com.Deysdeveloper.dailyvoicejournalapp.audio.AudioPlayer
 import com.Deysdeveloper.dailyvoicejournalapp.audio.AudioRecorder
 import com.Deysdeveloper.dailyvoicejournalapp.audio.SpeechToTextService
+import com.Deysdeveloper.dailyvoicejournalapp.audio.WaveformExtractor
 import com.Deysdeveloper.dailyvoicejournalapp.data.PreferencesManager
+import com.Deysdeveloper.dailyvoicejournalapp.data.ThemeMode
 import com.Deysdeveloper.dailyvoicejournalapp.data.UserPreferences
 import com.Deysdeveloper.dailyvoicejournalapp.data.VoiceNote
 import com.Deysdeveloper.dailyvoicejournalapp.notifications.ReminderScheduler
@@ -134,17 +136,58 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = UserPreferences()
         )
     
-    val statistics: StateFlow<Statistics> = kotlinx.coroutines.flow.combine(
+    // Statistics flow - using Eagerly to prevent reset to 0 during scroll/record
+    val statistics: StateFlow<Statistics> = combine(
         repository.getTotalRecordingsCount(),
         repository.getTotalDuration()
     ) { count, duration ->
         Statistics(count, duration)
     }.stateIn(
         scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = Statistics()
+        started = SharingStarted.Eagerly,
+        initialValue = Statistics(0, 0)
     )
-    
+
+    /**
+     * Get activity data for the last 7 days.
+     * Returns a list of 7 booleans indicating whether the user recorded on each day.
+     * Index 0 = 6 days ago, Index 6 = today
+     */
+    fun getLastSevenDaysActivity(): List<Boolean> {
+        val calendar = Calendar.getInstance()
+        val activity = mutableListOf<Boolean>()
+
+        // Go back 6 days from today
+        calendar.add(Calendar.DAY_OF_MONTH, -6)
+
+        repeat(7) {
+            val dayStart = calendar.apply {
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }.timeInMillis
+
+            val dayEnd = calendar.apply {
+                set(Calendar.HOUR_OF_DAY, 23)
+                set(Calendar.MINUTE, 59)
+                set(Calendar.SECOND, 59)
+                set(Calendar.MILLISECOND, 999)
+            }.timeInMillis
+
+            // Check if there are any notes on this day
+            val hasRecording = allVoiceNotes.value.any { note ->
+                note.timestamp in dayStart..dayEnd
+            }
+            activity.add(hasRecording)
+
+            // Move to next day
+            calendar.add(Calendar.DAY_OF_MONTH, 1)
+        }
+
+        return activity
+    }
+
     private fun groupNotesByDate(notes: List<VoiceNote>): GroupedVoiceNotes {
         val calendar = Calendar.getInstance()
         val today = calendar.apply {
@@ -218,18 +261,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     
     fun stopRecording() {
         if (recordingState !is RecordingState.Recording) return
-        
+
         // Stop amplitude sampling and timer
         stopAmplitudeSampling()
         stopRecordingTimer()
-        
+
         try {
             val duration = audioRecorder.stop()
             val file = currentRecordingFile
-            
+
             if (file != null && file.exists()) {
                 viewModelScope.launch {
-                    repository.insertVoiceNote(
+                    val noteId = repository.insertVoiceNote(
                         VoiceNote(
                             filePath = file.absolutePath,
                             timestamp = System.currentTimeMillis(),
@@ -238,15 +281,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     )
                     // Update streak after successful recording
                     updateStreakIfNeeded()
+
+                    // Extract waveform data for playback visualization
+                    extractAndSaveWaveform(noteId, file.absolutePath)
                 }
             }
         } catch (e: Exception) {
-            android.util.Log.e("MainViewModel", "Failed to stop recording", e)
+            Log.e("MainViewModel", "Failed to stop recording", e)
         } finally {
             currentRecordingFile = null
             recordingState = RecordingState.Idle
             currentAmplitude = 0f
             recordingElapsedTime = 0L
+        }
+    }
+
+    private suspend fun extractAndSaveWaveform(noteId: Long, filePath: String) {
+        try {
+            val amplitudes = WaveformExtractor.extractWaveform(filePath)
+            if (amplitudes.isNotEmpty()) {
+                val waveformString = WaveformExtractor.serializeWaveform(amplitudes)
+                repository.updateVoiceNoteWaveform(noteId, waveformString)
+            }
+        } catch (e: Exception) {
+            Log.e("MainViewModel", "Failed to extract waveform", e)
         }
     }
     
@@ -308,6 +366,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleLock(enabled: Boolean) {
         viewModelScope.launch {
             preferencesManager.updateLockEnabled(enabled)
+        }
+    }
+
+    fun updateThemeMode(themeMode: ThemeMode) {
+        viewModelScope.launch {
+            preferencesManager.updateThemeMode(themeMode)
         }
     }
     

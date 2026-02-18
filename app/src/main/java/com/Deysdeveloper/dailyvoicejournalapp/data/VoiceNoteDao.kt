@@ -33,7 +33,10 @@ interface VoiceNoteDao {
     
     @Query("UPDATE voice_notes SET transcript = :transcript WHERE id = :id")
     suspend fun updateTranscript(id: Long, transcript: String?)
-    
+
+    @Query("UPDATE voice_notes SET waveformData = :waveformData WHERE id = :id")
+    suspend fun updateWaveformData(id: Long, waveformData: String?)
+
     @Query("SELECT * FROM voice_notes WHERE transcript IS NULL AND duration > 5000 ORDER BY timestamp DESC")
     fun getVoiceNotesWithoutTranscript(): Flow<List<VoiceNote>>
 }

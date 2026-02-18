@@ -11,10 +11,12 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.Deysdeveloper.dailyvoicejournalapp.audio.WaveformExtractor
 import com.Deysdeveloper.dailyvoicejournalapp.data.VoiceNote
 
 @Composable
@@ -40,6 +42,14 @@ fun VoiceNoteItem(
     onAutoTranscribeClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val amplitudes = remember(voiceNote.waveformData) {
+        voiceNote.waveformData?.let { WaveformExtractor.deserializeWaveform(it) } ?: emptyList()
+    }
+
+    val progress = if (playbackDuration > 0) {
+        currentPosition.toFloat() / playbackDuration.toFloat()
+    } else 0f
+
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -161,8 +171,31 @@ fun VoiceNoteItem(
                 }
             }
             
-            // Show audio controller when playing
-            if (isPlaying && playbackDuration > 0) {
+            // Show waveform visualization
+            if (amplitudes.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                if (isPlaying && playbackDuration > 0) {
+                    // Interactive waveform during playback
+                    PlaybackWaveform(
+                        amplitudes = amplitudes,
+                        progress = progress,
+                        onSeek = { seekProgress ->
+                            val seekPosition = (seekProgress * playbackDuration).toInt()
+                            onSeek(seekPosition)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                } else {
+                    // Static waveform when not playing
+                    StaticWaveform(
+                        amplitudes = amplitudes,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            // Show audio controller when playing (legacy, can be removed if waveform is preferred)
+            if (isPlaying && playbackDuration > 0 && amplitudes.isEmpty()) {
                 AudioController(
                     isPlaying = isAudioActuallyPlaying,
                     currentPosition = currentPosition,

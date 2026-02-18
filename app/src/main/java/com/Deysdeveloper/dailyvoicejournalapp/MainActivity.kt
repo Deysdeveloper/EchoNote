@@ -89,8 +89,9 @@ class MainActivity : FragmentActivity() {
         
         enableEdgeToEdge()
         setContent {
-            DailyVoiceJournalAppTheme {
-                val userPreferences by viewModel.userPreferences.collectAsState()
+            val userPreferences by viewModel.userPreferences.collectAsState()
+
+            DailyVoiceJournalAppTheme(themeMode = userPreferences.themeMode) {
                 
                 // Check if lock is enabled and app is not unlocked
                 val shouldShowLockScreen = userPreferences.lockEnabled && !isUnlocked

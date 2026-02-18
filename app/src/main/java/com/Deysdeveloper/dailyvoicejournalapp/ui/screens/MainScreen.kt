@@ -2,6 +2,7 @@ package com.Deysdeveloper.dailyvoicejournalapp.ui.screens
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -15,9 +16,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.FileProvider
 import com.Deysdeveloper.dailyvoicejournalapp.audio.ModelDownloader
-import com.Deysdeveloper.dailyvoicejournalapp.audio.SpeechToTextService
 import com.Deysdeveloper.dailyvoicejournalapp.ui.MainViewModel
 import com.Deysdeveloper.dailyvoicejournalapp.ui.RecordingState
 import com.Deysdeveloper.dailyvoicejournalapp.ui.components.DateHeader
@@ -40,7 +42,9 @@ import java.io.File
 fun MainScreen(
     viewModel: MainViewModel,
     hasRecordPermission: Boolean,
-    onRequestPermission: () -> Unit
+    onRequestPermission: () -> Unit,
+    hasNotificationPermission: Boolean,
+    onRequestNotificationPermission: () -> Unit
 ) {
     val context = LocalContext.current
     val groupedNotes by viewModel.groupedVoiceNotes.collectAsState()
@@ -49,12 +53,14 @@ fun MainScreen(
     val userPreferences by viewModel.userPreferences.collectAsState()
     val transcriptStates by viewModel.transcriptStates.collectAsState()
     val modelDownloadState by viewModel.modelDownloadState.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
     
     var noteToRename by remember { mutableStateOf<VoiceNote?>(null) }
     var noteToEditTranscript by remember { mutableStateOf<VoiceNote?>(null) }
     var showSettingsDialog by remember { mutableStateOf(false) }
     var showModelSetupDialog by remember { mutableStateOf(false) }
     var showModelDownloadDialog by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
     
     // Initialize speech model on startup (check if exists, don't auto-download)
     LaunchedEffect(Unit) {
@@ -88,7 +94,7 @@ fun MainScreen(
         ) {
             // Search bar
             OutlinedTextField(
-                value = viewModel.searchQuery,
+                value = searchQuery,
                 onValueChange = { viewModel.updateSearchQuery(it) },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -101,7 +107,7 @@ fun MainScreen(
                     )
                 },
                 trailingIcon = {
-                    if (viewModel.searchQuery.isNotEmpty()) {
+                    if (searchQuery.isNotEmpty()) {
                         IconButton(onClick = { viewModel.clearSearch() }) {
                             Icon(
                                 imageVector = Icons.Default.Close,
@@ -190,9 +196,9 @@ fun MainScreen(
             }
             
             // Empty state or voice notes list
-            if (groupedNotes.today.isEmpty() && 
-                groupedNotes.yesterday.isEmpty() && 
-                groupedNotes.older.isEmpty()) {
+            if (groupedNotes.today.isEmpty() &&
+                groupedNotes.yesterday.isEmpty() &&
+                groupedNotes.olderByDate.isEmpty()) {
                 item {
                     EmptyStateView()
                 }
@@ -289,13 +295,13 @@ fun MainScreen(
                         }
                     }
                     
-                    // Older section
-                    if (groupedNotes.older.isNotEmpty()) {
+                    // Older notes grouped by date
+                    groupedNotes.olderByDate.forEach { dateGroup ->
                         item {
-                            DateHeader(text = "Older")
+                            DateHeader(text = dateGroup.header)
                         }
-                        items(groupedNotes.older) { note ->
-                            val isThisNotePlaying = recordingState is RecordingState.Playing && 
+                        items(dateGroup.notes) { note ->
+                            val isThisNotePlaying = recordingState is RecordingState.Playing &&
                                            (recordingState as RecordingState.Playing).noteId == note.id
                             val transcriptState = transcriptStates[note.id]
                             val isTranscribing = transcriptState is TranscriptState.Converting
@@ -323,7 +329,7 @@ fun MainScreen(
                                 onDeleteClick = { viewModel.deleteVoiceNote(note.id) },
                                 onShareClick = { shareVoiceNote(context, note.filePath) },
                                 onEditTranscriptClick = { noteToEditTranscript = note },
-                                                                onAutoTranscribeClick = {
+                                onAutoTranscribeClick = {
                                     if (viewModel.isSpeechModelAvailable()) {
                                         viewModel.convertSpeechToText(note)
                                     } else {
@@ -364,15 +370,83 @@ fun MainScreen(
             lockEnabled = userPreferences.lockEnabled,
             onDismiss = { showSettingsDialog = false },
             onNotificationToggle = { enabled ->
-                viewModel.toggleNotifications(enabled)
+                if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    if (hasNotificationPermission) {
+                        viewModel.toggleNotifications(true)
+                    } else {
+                        onRequestNotificationPermission()
+                    }
+                } else {
+                    viewModel.toggleNotifications(enabled)
+                }
             },
-            onNotificationTimeChange = { hour, minute ->
-                // TODO: Implement time picker if needed
+            onTimeClick = {
+                showTimePicker = true
             },
             onLockToggle = { enabled ->
                 viewModel.toggleLock(enabled)
             }
         )
+    }
+
+    // Time Picker Dialog - Full screen style for better UX
+    if (showTimePicker) {
+        val timePickerState = rememberTimePickerState(
+            initialHour = userPreferences.notificationHour,
+            initialMinute = userPreferences.notificationMinute,
+            is24Hour = false
+        )
+
+        Dialog(
+            onDismissRequest = { showTimePicker = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                shape = MaterialTheme.shapes.extraLarge,
+                tonalElevation = 6.dp,
+                modifier = Modifier
+                    .width(IntrinsicSize.Min)
+                    .height(IntrinsicSize.Min)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Set Reminder Time",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    TimePicker(
+                        state = timePickerState,
+                        layoutType = TimePickerLayoutType.Vertical
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { showTimePicker = false }) {
+                            Text("Cancel")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        TextButton(
+                            onClick = {
+                                viewModel.updateNotificationTime(timePickerState.hour, timePickerState.minute)
+                                showTimePicker = false
+                            }
+                        ) {
+                            Text("OK")
+                        }
+                    }
+                }
+            }
+        }
     }
     
     // Transcript dialog

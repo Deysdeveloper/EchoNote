@@ -1,8 +1,11 @@
 package com.Deysdeveloper.dailyvoicejournalapp.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -15,7 +18,7 @@ fun SettingsDialog(
     lockEnabled: Boolean,
     onDismiss: () -> Unit,
     onNotificationToggle: (Boolean) -> Unit,
-    onNotificationTimeChange: (Int, Int) -> Unit,
+    onTimeClick: () -> Unit,
     onLockToggle: (Boolean) -> Unit
 ) {
     AlertDialog(
@@ -53,11 +56,25 @@ fun SettingsDialog(
                 
                 if (notificationEnabled) {
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Time: ${String.format("%02d:%02d", notificationHour, notificationMinute)}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onTimeClick() }
+                            .padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Time: ${String.format("%02d:%02d", notificationHour, notificationMinute)}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Change time",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                     Text(
                         text = "Notification: \"Take 1 minute to record today's thoughts.\"",
                         style = MaterialTheme.typography.bodySmall,

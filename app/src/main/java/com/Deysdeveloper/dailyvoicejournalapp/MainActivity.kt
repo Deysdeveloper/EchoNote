@@ -35,10 +35,19 @@ class MainActivity : FragmentActivity() {
         hasRecordPermission = isGranted
     }
     
+    private var pendingNotificationEnable by mutableStateOf(false)
+    
     private val requestNotificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         hasNotificationPermission = isGranted
+        if (pendingNotificationEnable) {
+            if (isGranted) {
+                // Permission granted and user wanted to enable notifications
+                viewModel.toggleNotifications(true)
+            }
+            pendingNotificationEnable = false
+        }
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -113,6 +122,13 @@ class MainActivity : FragmentActivity() {
                         hasRecordPermission = hasRecordPermission,
                         onRequestPermission = {
                             requestRecordPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        },
+                        hasNotificationPermission = hasNotificationPermission,
+                        onRequestNotificationPermission = {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                pendingNotificationEnable = true
+                                requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            }
                         }
                     )
                 }

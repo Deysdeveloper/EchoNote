@@ -22,6 +22,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -46,7 +47,12 @@ sealed class TranscriptState {
 data class GroupedVoiceNotes(
     val today: List<VoiceNote>,
     val yesterday: List<VoiceNote>,
-    val older: List<VoiceNote>
+    val olderByDate: List<DateGroup> // Groups older notes by specific dates
+)
+
+data class DateGroup(
+    val header: String, // e.g., "Monday, Feb 17"
+    val notes: List<VoiceNote>
 )
 
 data class Statistics(
@@ -79,8 +85,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     var recordingElapsedTime by mutableStateOf(0L)
         private set
     
-    var searchQuery by mutableStateOf("")
-        private set
+    // Search query as StateFlow so it properly triggers flow recombination
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
     
     // Speech-to-text state
     private val _transcriptStates = MutableStateFlow<Map<Long, TranscriptState>>(emptyMap())
@@ -100,16 +107,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = emptyList()
         )
     
-    val groupedVoiceNotes: StateFlow<GroupedVoiceNotes> = allVoiceNotes
-        .map { notes ->
-            val filteredNotes = if (searchQuery.isBlank()) {
+    val groupedVoiceNotes: StateFlow<GroupedVoiceNotes> = 
+        combine(allVoiceNotes, _searchQuery) { notes, query ->
+            val filteredNotes = if (query.isBlank()) {
                 notes
             } else {
                 notes.filter { note ->
                     val title = note.title ?: getDefaultTitle(note.timestamp)
                     val transcript = note.transcript ?: ""
-                    title.contains(searchQuery, ignoreCase = true) ||
-                    transcript.contains(searchQuery, ignoreCase = true)
+                    title.contains(query, ignoreCase = true) ||
+                    transcript.contains(query, ignoreCase = true)
                 }
             }
             groupNotesByDate(filteredNotes)
@@ -140,21 +147,47 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     
     private fun groupNotesByDate(notes: List<VoiceNote>): GroupedVoiceNotes {
         val calendar = Calendar.getInstance()
-        val today = calendar.apply { 
+        val today = calendar.apply {
             set(Calendar.HOUR_OF_DAY, 0)
             set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }.timeInMillis
-        
+
         val yesterday = calendar.apply {
             add(Calendar.DAY_OF_MONTH, -1)
         }.timeInMillis
-        
+
+        val todayNotes = notes.filter { it.timestamp >= today }
+        val yesterdayNotes = notes.filter { it.timestamp >= yesterday && it.timestamp < today }
+        val olderNotes = notes.filter { it.timestamp < yesterday }
+
+        // Group older notes by date
+        val dateFormat = SimpleDateFormat("EEEE, MMM d", Locale.getDefault())
+        val olderByDate = olderNotes
+            .groupBy { note ->
+                // Get just the date part (midnight timestamp)
+                val noteCalendar = Calendar.getInstance().apply {
+                    timeInMillis = note.timestamp
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                noteCalendar.timeInMillis
+            }
+            .toSortedMap(reverseOrder()) // Most recent first
+            .map { (dateMillis, notesForDate) ->
+                DateGroup(
+                    header = dateFormat.format(Date(dateMillis)),
+                    notes = notesForDate.sortedByDescending { it.timestamp }
+                )
+            }
+
         return GroupedVoiceNotes(
-            today = notes.filter { it.timestamp >= today },
-            yesterday = notes.filter { it.timestamp >= yesterday && it.timestamp < today },
-            older = notes.filter { it.timestamp < yesterday }
+            today = todayNotes.sortedByDescending { it.timestamp },
+            yesterday = yesterdayNotes.sortedByDescending { it.timestamp },
+            olderByDate = olderByDate
         )
     }
     
@@ -240,7 +273,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 prefs.notificationHour,
                 prefs.notificationMinute
             )
-            
+
             if (enabled) {
                 ReminderScheduler.scheduleDailyReminder(
                     getApplication(),
@@ -249,6 +282,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
             } else {
                 ReminderScheduler.cancelDailyReminder(getApplication())
+            }
+        }
+    }
+
+    fun updateNotificationTime(hour: Int, minute: Int) {
+        viewModelScope.launch {
+            val prefs = userPreferences.value
+            preferencesManager.updateNotificationSettings(
+                prefs.notificationEnabled,
+                hour,
+                minute
+            )
+
+            if (prefs.notificationEnabled) {
+                ReminderScheduler.scheduleDailyReminder(
+                    getApplication(),
+                    hour,
+                    minute
+                )
             }
         }
     }
@@ -455,11 +507,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     fun updateSearchQuery(query: String) {
-        searchQuery = query
+        _searchQuery.value = query
     }
-    
+
     fun clearSearch() {
-        searchQuery = ""
+        _searchQuery.value = ""
     }
     
     fun formatDuration(duration: Long): String {

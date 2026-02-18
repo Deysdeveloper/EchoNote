@@ -15,8 +15,8 @@ lifecycleViewModel = "2.10.0"
 workManager = "2.9.0"
 dataStore = "1.1.1"
 fragmentKtx = "1.6.2"
-vosk = "0.3.46"
-jna = "5.13.0"
+vosk = "0.3.75"
+jna = "5.15.0"
 
 [libraries]
 androidx-biometric-ktx = { module = "androidx.biometric:biometric-ktx", version.ref = "biometricKtx" }

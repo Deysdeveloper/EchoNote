@@ -42,14 +42,16 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
         jniLibs {
-            useLegacyPackaging = true
+            // For 16 KB page size compatibility, use default extraction behavior
+            // (useLegacyPackaging = false means extractNativeLibs = true)
+            useLegacyPackaging = false
             pickFirsts.add("**/libjnidispatch.so")
             pickFirsts.add("**/libvosk.so")
         }
     }
     
     // Add jniLibs source set
-    sourceSets["main"].jniLibs.srcDir("src/main/jniLibs")
+    sourceSets["main"].jniLibs.setSrcDirs(listOf("src/main/jniLibs"))
 }
 
 dependencies {
@@ -89,7 +91,8 @@ dependencies {
     }
     
     // JNA required by Vosk - use AAR version which includes Android native libs
-    implementation("net.java.dev.jna:jna:5.13.0@aar")
+    // Version 5.15.0+ has 16KB page size alignment fix
+    implementation("net.java.dev.jna:jna:5.15.0@aar")
     
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

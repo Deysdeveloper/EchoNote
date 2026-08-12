@@ -49,7 +49,8 @@ sealed class TranscriptState {
 data class GroupedVoiceNotes(
     val today: List<VoiceNote>,
     val yesterday: List<VoiceNote>,
-    val olderByDate: List<DateGroup> // Groups older notes by specific dates
+    val olderByDate: List<DateGroup>,
+    // Groups older notes by specific dates
 )
 
 data class DateGroup(

@@ -14,8 +14,8 @@ android {
         applicationId = "com.Deysdeveloper.dailyvoicejournalapp"
         minSdk = 31
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.0"
+        versionCode = 4
+        versionName = "1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -42,8 +42,8 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
         jniLibs {
-            // For 16 KB page size compatibility, use default extraction behavior
-            // (useLegacyPackaging = false means extractNativeLibs = true)
+            // useLegacyPackaging = false: .so files stored uncompressed + 16KB aligned in the APK.
+            // Combined with android:extractNativeLibs="false" in manifest for 16 KB page size support.
             useLegacyPackaging = false
             pickFirsts.add("**/libjnidispatch.so")
             pickFirsts.add("**/libvosk.so")

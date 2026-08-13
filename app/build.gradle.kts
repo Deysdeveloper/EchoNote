@@ -14,10 +14,21 @@ android {
         applicationId = "com.Deysdeveloper.dailyvoicejournalapp"
         minSdk = 31
         targetSdk = 36
-        versionCode = 4
-        versionName = "1.1"
+        versionCode = 6
+        versionName = "1.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Only package arm64-v8a native libraries.
+        // - minSdk 31 (Android 12) means all supported devices are 64-bit capable.
+        // - The prebuilt Vosk and JNA .so files for armeabi-v7a, x86, x86_64, armeabi,
+        //   mips, mips64 have only 4 KB ELF LOAD alignment (2^12), which fails
+        //   Google Play's 16 KB page-size requirement.
+        // - The arm64-v8a variants are compiled with 16 KB LOAD alignment (2^14+),
+        //   which satisfies the requirement.
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
     }
 
     buildTypes {
@@ -42,11 +53,9 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
         jniLibs {
-            // useLegacyPackaging = false: .so files stored uncompressed + 16KB aligned in the APK.
-            // Combined with android:extractNativeLibs="false" in manifest for 16 KB page size support.
+            // Store native libs uncompressed in the APK so Android can mmap them
+            // directly at 16 KB-aligned offsets (required for 16 KB page-size support).
             useLegacyPackaging = false
-            pickFirsts.add("**/libjnidispatch.so")
-            pickFirsts.add("**/libvosk.so")
         }
     }
     
